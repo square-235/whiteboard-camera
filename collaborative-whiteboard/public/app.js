@@ -29,14 +29,6 @@ createApp({
             cameraStyle: {
                 transform: 'translate(0, 0) scale(1)'
             },
-            isMovingCamera: false,
-            isResizingCamera: false,
-            cameraStartX: 0,
-            cameraStartY: 0,
-            cameraStartLeft: 0,
-            cameraStartTop: 0,
-            cameraStartWidth: 0,
-            cameraStartHeight: 0,
             previousTool: null
         };
     },
@@ -123,13 +115,6 @@ createApp({
                 return;
             }
             
-            // 检查是否点击在摄像头容器上
-            const cameraContainer = document.querySelector('.camera-container');
-            if (cameraContainer && cameraContainer.contains(e.target)) {
-                // 点击在摄像头容器上，不进行绘画
-                return;
-            }
-            
             this.isDrawing = true;
             
             // 获取相对坐标（考虑画布变换）
@@ -153,13 +138,6 @@ createApp({
             
             // 如果没有在绘制，直接返回
             if (!this.isDrawing) return;
-            
-            // 检查是否在摄像头容器上绘制
-            const cameraContainer = document.querySelector('.camera-container');
-            if (cameraContainer && cameraContainer.contains(e.target)) {
-                // 在摄像头容器上绘制，不进行绘画
-                return;
-            }
             
             // 如果是橡皮擦工具，使用白色绘制
             const isEraser = this.currentTool === 'eraser';
@@ -254,9 +232,10 @@ createApp({
             link.click();
         },
         
-        // 开启/关闭摄像头
-        async toggleCamera() {
+        // 白板/展台切换
+        async toggleWhiteboardCamera() {
             if (this.isCameraActive) {
+                // 当前是展台模式，切换到白板模式
                 // 关闭摄像头
                 if (this.cameraStream) {
                     const tracks = this.cameraStream.getTracks();
@@ -265,6 +244,7 @@ createApp({
                 this.isCameraActive = false;
                 this.isCameraFrozen = false;
             } else {
+                // 当前是白板模式，切换到展台模式
                 // 开启摄像头
                 try {
                     // 检查是否支持mediaDevices API
@@ -325,6 +305,11 @@ createApp({
             }
         },
         
+        // 开启/关闭摄像头（保留原始方法以确保向后兼容）
+        async toggleCamera() {
+            return this.toggleWhiteboardCamera();
+        },
+        
         // 冻结/解冻摄像头画面
         toggleCameraFreeze() {
             if (!this.isCameraActive) return;
@@ -342,158 +327,7 @@ createApp({
             }
         },
         
-        // 开始移动摄像头
-        startMovingCamera(e) {
-            if (!this.isCameraActive) return;
-            
-            e.preventDefault();
-            e.stopPropagation();
-            this.isMovingCamera = true;
-            this.cameraStartX = e.clientX;
-            this.cameraStartY = e.clientY;
-            
-            // 获取摄像头容器的当前位置
-            const cameraContainer = document.querySelector('.camera-container');
-            if (cameraContainer) {
-                const style = window.getComputedStyle(cameraContainer);
-                this.cameraStartLeft = parseInt(style.left) || 0;
-                this.cameraStartTop = parseInt(style.top) || 0;
-            }
-            
-            // 阻止事件冒泡到画布事件
-            e.stopImmediatePropagation();
-        },
         
-        // 开始触摸移动摄像头
-        startMovingCameraTouch(e) {
-            if (!this.isCameraActive || !e.touches.length) return;
-            
-            e.preventDefault();
-            e.stopPropagation();
-            this.isMovingCamera = true;
-            this.cameraStartX = e.touches[0].clientX;
-            this.cameraStartY = e.touches[0].clientY;
-            
-            // 获取摄像头容器的当前位置
-            const cameraContainer = document.querySelector('.camera-container');
-            if (cameraContainer) {
-                const style = window.getComputedStyle(cameraContainer);
-                this.cameraStartLeft = parseInt(style.left) || 0;
-                this.cameraStartTop = parseInt(style.top) || 0;
-            }
-            
-            // 阻止事件冒泡到画布事件
-            e.stopImmediatePropagation();
-        },
-        
-        // 移动摄像头
-        moveCamera(e) {
-            if (!this.isMovingCamera) return;
-            
-            e.preventDefault();
-            e.stopPropagation();
-            
-            // 计算新的位置
-            const deltaX = e.clientX - this.cameraStartX;
-            const deltaY = e.clientY - this.cameraStartY;
-            
-            // 更新摄像头位置样式
-            const newLeft = this.cameraStartLeft + deltaX;
-            const newTop = this.cameraStartTop + deltaY;
-            
-            // 应用新位置
-            const cameraContainer = document.querySelector('.camera-container');
-            if (cameraContainer) {
-                cameraContainer.style.left = newLeft + 'px';
-                cameraContainer.style.top = newTop + 'px';
-                cameraContainer.style.right = 'auto';
-                cameraContainer.style.bottom = 'auto';
-            }
-            
-            // 阻止事件冒泡到画布事件
-            e.stopImmediatePropagation();
-        },
-        
-        // 结束移动摄像头
-        stopMovingCamera() {
-            this.isMovingCamera = false;
-        },
-        
-        // 开始调整摄像头大小
-        startResizing(e) {
-            if (!this.isCameraActive) return;
-            
-            e.preventDefault();
-            e.stopPropagation();
-            this.isResizingCamera = true;
-            this.cameraStartX = e.clientX;
-            this.cameraStartY = e.clientY;
-            
-            // 获取摄像头容器的当前尺寸
-            const cameraContainer = document.querySelector('.camera-container');
-            if (cameraContainer) {
-                const style = window.getComputedStyle(cameraContainer);
-                this.cameraStartWidth = parseInt(style.width) || 200;
-                this.cameraStartHeight = parseInt(style.height) || 150;
-            }
-            
-            // 阻止事件冒泡到移动处理
-            e.stopImmediatePropagation();
-        },
-        
-        // 开始触摸调整摄像头大小
-        startResizingTouch(e) {
-            if (!this.isCameraActive || !e.touches.length) return;
-            
-            e.preventDefault();
-            e.stopPropagation();
-            this.isResizingCamera = true;
-            this.cameraStartX = e.touches[0].clientX;
-            this.cameraStartY = e.touches[0].clientY;
-            
-            // 获取摄像头容器的当前尺寸
-            const cameraContainer = document.querySelector('.camera-container');
-            if (cameraContainer) {
-                const style = window.getComputedStyle(cameraContainer);
-                this.cameraStartWidth = parseInt(style.width) || 200;
-                this.cameraStartHeight = parseInt(style.height) || 150;
-            }
-            
-            // 阻止事件冒泡到移动处理
-            e.stopImmediatePropagation();
-        },
-        
-        // 调整摄像头大小
-        resizeCamera(e) {
-            if (!this.isResizingCamera) return;
-            
-            e.preventDefault();
-            e.stopPropagation();
-            
-            // 计算新的尺寸
-            const deltaX = e.clientX - this.cameraStartX;
-            const deltaY = e.clientY - this.cameraStartY;
-            
-            // 保持4:3比例
-            const aspectRatio = 4 / 3;
-            const newWidth = Math.max(100, this.cameraStartWidth + deltaX);
-            const newHeight = Math.max(75, newWidth / aspectRatio);
-            
-            // 应用新尺寸
-            const cameraContainer = document.querySelector('.camera-container');
-            if (cameraContainer) {
-                cameraContainer.style.width = newWidth + 'px';
-                cameraContainer.style.height = newHeight + 'px';
-            }
-            
-            // 阻止事件冒泡到画布事件
-            e.stopImmediatePropagation();
-        },
-        
-        // 结束调整摄像头大小
-        stopResizingCamera() {
-            this.isResizingCamera = false;
-        },
         
         // 处理键盘按下事件
         handleKeyDown(e) {
@@ -520,70 +354,3 @@ createApp({
         }
     }
 }).mount('#app');
-
-// 添加全局事件监听器
-document.addEventListener('mousemove', (e) => {
-    const app = document.getElementById('app').__vue__;
-    if (app) {
-        // 检查是否正在进行摄像头操作
-        if (app.isMovingCamera || app.isResizingCamera) {
-            e.preventDefault();
-            e.stopPropagation();
-            // 处理摄像头操作
-            if (app.isMovingCamera) {
-                app.moveCamera(e);
-            }
-            if (app.isResizingCamera) {
-                app.resizeCamera(e);
-            }
-            e.stopImmediatePropagation();
-            return; // 确保不继续处理其他事件
-        }
-    }
-}, { passive: false });
-
-document.addEventListener('mouseup', (e) => {
-    const app = document.getElementById('app').__vue__;
-    if (app) {
-        // 检查是否正在进行摄像头操作
-        if (app.isMovingCamera || app.isResizingCamera) {
-            app.stopMovingCamera();
-            app.stopResizingCamera();
-            e.stopImmediatePropagation();
-            return; // 确保不继续处理其他事件
-        }
-    }
-});
-
-document.addEventListener('touchmove', (e) => {
-    const app = document.getElementById('app').__vue__;
-    if (app && e.touches.length) {
-        // 检查是否正在进行摄像头操作
-        if (app.isMovingCamera || app.isResizingCamera) {
-            e.preventDefault();
-            e.stopPropagation();
-            // 处理摄像头操作
-            if (app.isMovingCamera) {
-                app.moveCamera(e.touches[0]);
-            }
-            if (app.isResizingCamera) {
-                app.resizeCamera(e.touches[0]);
-            }
-            e.stopImmediatePropagation();
-            return; // 确保不继续处理其他事件
-        }
-    }
-}, { passive: false });
-
-document.addEventListener('touchend', (e) => {
-    const app = document.getElementById('app').__vue__;
-    if (app) {
-        // 检查是否正在进行摄像头操作
-        if (app.isMovingCamera || app.isResizingCamera) {
-            app.stopMovingCamera();
-            app.stopResizingCamera();
-            e.stopImmediatePropagation();
-            return; // 确保不继续处理其他事件
-        }
-    }
-});

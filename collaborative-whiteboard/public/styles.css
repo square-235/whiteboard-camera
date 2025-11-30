@@ -115,19 +115,16 @@ canvas {
 /* 摄像头容器 */
 .camera-container {
     position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 25vw;
-    height: calc(25vw * 0.75); /* 4:3 比例 */
-    border: 2px solid #333;
-    border-radius: 8px;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
+    border-radius: 0;
     overflow: hidden;
     background-color: #000;
     z-index: 1000; /* 确保摄像头在最上层 */
-    cursor: move;
     touch-action: none;
-    transform: translate(-50%, -50%);
-    resize: both;
     pointer-events: none;
 }
 
@@ -139,21 +136,6 @@ canvas {
     width: 100%;
     height: 100%;
     object-fit: cover;
-}
-
-/* 摄像头调整大小手柄 */
-.resize-handle {
-    position: absolute;
-    width: 20px;
-    height: 20px;
-    background-color: #fff;
-    border: 2px solid #333;
-    border-radius: 50%;
-    bottom: -10px;
-    right: -10px;
-    cursor: se-resize;
-    z-index: 1001; /* 确保手柄在摄像头容器之上 */
-    box-shadow: 0 2px 4px rgba(0,0,0,0.3); /* 添加阴影提高可见性 */
 }
 
 /* 响应式设计 */

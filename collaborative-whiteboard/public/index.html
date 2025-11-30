@@ -15,8 +15,7 @@
             <button @click="setTool('move')" :class="{ active: currentTool === 'move' }">移动</button>
             <button @click="clearCanvas">清空白板</button>
             <button @click="saveAsImage">保存为图片</button>
-            <button @click="toggleCamera" v-if="!isCameraActive">开启摄像头</button>
-            <button @click="toggleCamera" v-else>关闭摄像头</button>
+            <button @click="toggleWhiteboardCamera">{{ isCameraActive ? '切换到白板' : '切换到展台' }}</button>
             <button @click="toggleCameraFreeze" v-if="isCameraActive && !isCameraFrozen">冻结画面</button>
             <button @click="toggleCameraFreeze" v-if="isCameraActive && isCameraFrozen">解冻画面</button>
             
@@ -53,11 +52,8 @@
             <!-- 摄像头画面 -->
             <div v-if="isCameraActive" 
              class="camera-container" 
-             style="right: auto; bottom: auto;"
-             @mousedown.stop="startMovingCamera"
-             @touchstart.stop="startMovingCameraTouch">
+             style="right: auto; bottom: auto;">
             <video ref="cameraVideo" autoplay playsinline></video>
-            <div class="resize-handle" @mousedown.stop="startResizing" @touchstart.stop="startResizingTouch"></div>
         </div>
         </div>
     </div>
