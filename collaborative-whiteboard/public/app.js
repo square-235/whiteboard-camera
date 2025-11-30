@@ -6,7 +6,7 @@ createApp({
             return {
                 // 工具相关
                 currentTool: 'pen',
-                penColor: '#000000',
+                penColor: '#ff0000',
                 penSize: 5,
                 
                 // 绘图状态
@@ -138,22 +138,33 @@ createApp({
             
             // 定义事件处理函数
             const handleMouseDown = (e) => {
+                // 阻止事件冒泡，防止主画布重复处理
+                e.stopPropagation();
                 this.startDrawingOverlay(e);
             };
             
             const handleMouseMove = (e) => {
+                // 阻止事件冒泡，防止主画布重复处理
+                e.stopPropagation();
                 this.drawOnOverlay(e);
             };
             
             const handleMouseUp = (e) => {
+                // 阻止事件冒泡，防止主画布重复处理
+                e.stopPropagation();
                 this.stopDrawingOverlay(e);
             };
             
             const handleMouseLeave = (e) => {
+                // 阻止事件冒泡，防止主画布重复处理
+                e.stopPropagation();
                 this.stopDrawingOverlay(e);
             };
             
             const handleWheel = (e) => {
+                // 阻止默认行为并停止事件传播，防止事件被主画布重复处理
+                e.preventDefault();
+                e.stopPropagation();
                 this.handleZoom(e);
             };
             
@@ -174,10 +185,15 @@ createApp({
             );
         },
         
-        // 在每次重绘时应用变换
+        // 应用变换（缩放和平移）
         applyTransform() {
-            const canvas = this.$refs.mainCanvas;
-            canvas.style.transform = `translate(${this.offsetX}px, ${this.offsetY}px) scale(${this.scale})`;
+            const container = this.$refs.canvasContainer;
+            container.style.transform = `translate(${this.offsetX}px, ${this.offsetY}px) scale(${this.scale})`;
+            
+            // 如果在展台模式下，也要对摄像头容器应用相同的变换
+            if (this.isCameraActive && this.$refs.cameraContainer) {
+                this.$refs.cameraContainer.style.transform = `translate(${this.offsetX}px, ${this.offsetY}px) scale(${this.scale})`;
+            }
         },
         
         // 设置当前工具
@@ -277,19 +293,38 @@ createApp({
 
         // 叠加画布开始绘制方法
         startDrawingOverlay(e) {
+            // 如果是移动工具，开始平移
+            if (this.currentTool === 'move') {
+                this.isPanning = true;
+                this.panStartX = e.clientX - this.offsetX;
+                this.panStartY = e.clientY - this.offsetY;
+                return;
+            }
+            
             // 只有在画笔或橡皮擦模式下才允许绘制
             if (this.currentTool !== 'pen' && this.currentTool !== 'eraser') return;
             
             this.isDrawing = true;
             
-            // 获取叠加画布上的坐标
-            const rect = this.$refs.overlayCanvas.getBoundingClientRect();
-            this.lastX = e.clientX - rect.left;
-            this.lastY = e.clientY - rect.top;
+            // 获取相对坐标（考虑画布变换）
+            const containerRect = this.$refs.canvasContainer.getBoundingClientRect();
+            const x = (e.clientX - containerRect.left - this.offsetX) / this.scale;
+            const y = (e.clientY - containerRect.top - this.offsetY) / this.scale;
+            
+            this.lastX = x;
+            this.lastY = y;
         },
 
         // 叠加画布绘制方法
         drawOnOverlay(e) {
+            // 如果正在平移，更新画布位置
+            if (this.isPanning) {
+                this.offsetX = e.clientX - this.panStartX;
+                this.offsetY = e.clientY - this.panStartY;
+                this.applyTransform(); // 应用变换
+                return;
+            }
+            
             // 如果没有在绘制，则直接返回
             if (!this.isDrawing) return;
             
@@ -299,35 +334,20 @@ createApp({
             const canvas = this.$refs.overlayCanvas;
             const ctx = canvas.getContext('2d');
             
-            // 获取叠加画布上的坐标
-            const rect = canvas.getBoundingClientRect();
-            const currentX = e.clientX - rect.left;
-            const currentY = e.clientY - rect.top;
+            // 获取相对坐标（考虑画布变换），与主画布保持完全一致
+            const containerRect = this.$refs.canvasContainer.getBoundingClientRect();
+            const currentX = (e.clientX - containerRect.left - this.offsetX) / this.scale;
+            const currentY = (e.clientY - containerRect.top - this.offsetY) / this.scale;
             
-            // 保存当前上下文状态
-            ctx.save();
+            // 设置绘图样式，与主画布保持一致
+            ctx.lineWidth = this.penSize;
+            ctx.strokeStyle = this.currentTool === 'eraser' ? 'white' : this.penColor;
             
-            // 根据当前工具设置绘图属性
-            if (this.currentTool === 'eraser') {
-                ctx.globalCompositeOperation = 'destination-out';
-                ctx.lineWidth = this.eraserSize;
-            } else {
-                ctx.globalCompositeOperation = 'source-over';
-                ctx.lineWidth = this.penSize;
-                ctx.strokeStyle = this.penColor;
-            }
-            
-            ctx.lineJoin = 'round';
-            ctx.lineCap = 'round';
-            
-            // 绘制线条
+            // 开始绘制路径
             ctx.beginPath();
             ctx.moveTo(this.lastX, this.lastY);
             ctx.lineTo(currentX, currentY);
             ctx.stroke();
-            
-            // 恢复上下文状态
-            ctx.restore();
             
             // 更新最后坐标
             this.lastX = currentX;
@@ -337,6 +357,8 @@ createApp({
         // 叠加画布停止绘制方法
         stopDrawingOverlay(e) {
             this.isDrawing = false;
+            this.isPanning = false;
+            this.applyTransform();
         },
 
         // 处理缩放
@@ -349,7 +371,7 @@ createApp({
             const mouseY = e.clientY - rect.top;
             
             // 计算缩放因子
-            const zoomIntensity = 0.1;
+            const zoomIntensity = 0.05; // 减小缩放强度
             const wheel = e.deltaY < 0 ? 1 : -1;
             const zoom = Math.exp(wheel * zoomIntensity);
             

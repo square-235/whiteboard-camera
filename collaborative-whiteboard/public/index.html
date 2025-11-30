@@ -52,7 +52,7 @@
             <!-- 摄像头画面 -->
             <div v-if="isCameraActive" 
              class="camera-container" 
-             style="right: auto; bottom: auto;">
+             ref="cameraContainer">
                 <video ref="cameraVideo" autoplay playsinline></video>
                 <canvas ref="overlayCanvas" class="overlay-canvas"></canvas>
             </div>

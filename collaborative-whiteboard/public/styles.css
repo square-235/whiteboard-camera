@@ -125,6 +125,7 @@ canvas {
     background-color: transparent;
     z-index: 1000; /* 确保摄像头在最上层 */
     touch-action: none;
+    transform-origin: 0 0;
 }
 
 .camera-container > * {
