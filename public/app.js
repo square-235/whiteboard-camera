@@ -179,19 +179,16 @@ createApp({
             const canvas = this.$refs.mainCanvas;
             canvas.style.transform = `translate(${this.offsetX}px, ${this.offsetY}px) scale(${this.scale})`;
             
-            // 如果在展台模式下，只应用变换到摄像头容器，保持叠加画布固定
+            // 如果在展台模式下，应用变换到摄像头容器和叠加画布
             if (this.isCameraActive) {
                 // 应用变换到摄像头容器
                 if (this.$refs.cameraContainer) {
                     this.$refs.cameraContainer.style.transform = `translate(${this.offsetX}px, ${this.offsetY}px) scale(${this.scale})`;
                 }
                 
-                // 叠加画布保持固定，不应用变换，并确保位置固定
+                // 叠加画布跟随摄像头容器一起变换
                 if (this.$refs.overlayCanvas) {
-                    this.$refs.overlayCanvas.style.transform = 'translate(0px, 0px) scale(1)';
-                    this.$refs.overlayCanvas.style.position = 'absolute';
-                    this.$refs.overlayCanvas.style.top = '0px';
-                    this.$refs.overlayCanvas.style.left = '0px';
+                    this.$refs.overlayCanvas.style.transform = `translate(${this.offsetX}px, ${this.offsetY}px) scale(${this.scale})`;
                 }
             }
         },
@@ -395,11 +392,6 @@ createApp({
         handleZoom(e) {
             e.preventDefault();
             
-            // 在展台模式下，不处理缩放
-            if (this.isCameraActive) {
-                return;
-            }
-            
             // 获取鼠标相对于画布容器的位置
             const rect = this.$refs.canvasContainer.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
@@ -424,22 +416,12 @@ createApp({
         
         // 放大
         zoomIn() {
-            // 在展台模式下，不执行缩放操作
-            if (this.isCameraActive) {
-                return;
-            }
-            
             this.scale = Math.min(5, this.scale * 1.2);
             this.applyTransform();
         },
         
         // 缩小
         zoomOut() {
-            // 在展台模式下，不执行缩放操作
-            if (this.isCameraActive) {
-                return;
-            }
-            
             this.scale = Math.max(0.1, this.scale * 0.8);
             this.applyTransform();
         },
