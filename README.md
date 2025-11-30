@@ -1,5 +1,6 @@
-# 白板和视频展台应用 (Collaborative Whiteboard)
+# 白板和视频展台应用 
 
+说明：本项目基于TRAE AI构建，下面的README.md是AI写的
 
 一个基于Web的本地白板和视频展台应用，支持绘图、摄像头展示等功能，无需服务器即可运行。
 
