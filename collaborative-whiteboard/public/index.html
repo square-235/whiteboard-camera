@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>本地白板</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- 工具栏 -->
+        <div class="toolbar">
+            <button @click="setTool('pen')" :class="{ active: currentTool === 'pen' }">画笔</button>
+            <button @click="setTool('eraser')" :class="{ active: currentTool === 'eraser' }">橡皮擦</button>
+            <button @click="setTool('move')" :class="{ active: currentTool === 'move' }">移动</button>
+            <button @click="clearCanvas">清空白板</button>
+            <button @click="saveAsImage">保存为图片</button>
+            <button @click="toggleCamera" v-if="!isCameraActive">开启摄像头</button>
+            <button @click="toggleCamera" v-else>关闭摄像头</button>
+            <button @click="toggleCameraFreeze" v-if="isCameraActive && !isCameraFrozen">冻结画面</button>
+            <button @click="toggleCameraFreeze" v-if="isCameraActive && isCameraFrozen">解冻画面</button>
+            
+            <div class="color-picker">
+                <label>颜色:</label>
+                <input type="color" v-model="penColor">
+            </div>
+            
+            <div class="brush-size">
+                <label>粗细:</label>
+                <input type="range" min="1" max="50" v-model="penSize">
+            </div>
+            
+            <div class="zoom-controls">
+                <button @click="zoomIn">+</button>
+                <span>{{ Math.round(scale * 100) }}%</span>
+                <button @click="zoomOut">-</button>
+            </div>
+        </div>
+        
+        <!-- 主画布区域 -->
+        <div class="canvas-container" 
+             :class="currentTool" 
+             ref="canvasContainer"
+             @wheel="handleZoom"
+             @mousedown="startDrawing" 
+             @mousemove="draw" 
+             @mouseup="stopDrawing" 
+             @mouseleave="stopDrawing">
+            <canvas 
+                ref="mainCanvas">
+            </canvas>
+            
+            <!-- 摄像头画面 -->
+            <div v-if="isCameraActive" 
+             class="camera-container" 
+             style="right: auto; bottom: auto;"
+             @mousedown.stop="startMovingCamera"
+             @touchstart.stop="startMovingCameraTouch">
+            <video ref="cameraVideo" autoplay playsinline></video>
+            <div class="resize-handle" @mousedown.stop="startResizing" @touchstart.stop="startResizingTouch"></div>
+        </div>
+        </div>
+    </div>
+
+    <!-- 引入Vue.js -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- 引入应用脚本 -->
+    <script src="app.js"></script>
+</body>
+</html>
