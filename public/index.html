@@ -13,7 +13,7 @@
             <button @click="setTool('pen')" :class="{ active: currentTool === 'pen' }">画笔</button>
             <button @click="setTool('eraser')" :class="{ active: currentTool === 'eraser' }">橡皮擦</button>
             <button @click="setTool('move')" :class="{ active: currentTool === 'move' }">移动</button>
-            <button @click="clearCanvas">清空白板</button>
+            <button @click="clearCanvas">{{ isCameraActive ? '清空笔迹' : '清空白板' }}</button>
             <button @click="saveAsImage">保存为图片</button>
             <button @click="toggleWhiteboardCamera">{{ isCameraActive ? '切换到白板' : '切换到展台' }}</button>
             <button @click="toggleCameraFreeze" v-if="isCameraActive && !isCameraFrozen">冻结画面</button>
@@ -52,6 +52,7 @@
             <!-- 摄像头画面 -->
             <div v-if="isCameraActive" 
              class="camera-container" 
+             ref="cameraContainer"
              style="right: auto; bottom: auto;">
                 <video ref="cameraVideo" autoplay playsinline></video>
                 <canvas ref="overlayCanvas" class="overlay-canvas"></canvas>

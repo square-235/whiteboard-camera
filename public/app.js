@@ -6,7 +6,7 @@ createApp({
             return {
                 // 工具相关
                 currentTool: 'pen',
-                penColor: '#000000',
+                penColor: '#ff0000ff',
                 penSize: 5,
                 
                 // 绘图状态
@@ -174,10 +174,26 @@ createApp({
             );
         },
         
-        // 在每次重绘时应用变换
+        // 应用变换到主画布，在展台模式下只对摄像头容器应用变换
         applyTransform() {
             const canvas = this.$refs.mainCanvas;
             canvas.style.transform = `translate(${this.offsetX}px, ${this.offsetY}px) scale(${this.scale})`;
+            
+            // 如果在展台模式下，只应用变换到摄像头容器，保持叠加画布固定
+            if (this.isCameraActive) {
+                // 应用变换到摄像头容器
+                if (this.$refs.cameraContainer) {
+                    this.$refs.cameraContainer.style.transform = `translate(${this.offsetX}px, ${this.offsetY}px) scale(${this.scale})`;
+                }
+                
+                // 叠加画布保持固定，不应用变换，并确保位置固定
+                if (this.$refs.overlayCanvas) {
+                    this.$refs.overlayCanvas.style.transform = 'translate(0px, 0px) scale(1)';
+                    this.$refs.overlayCanvas.style.position = 'absolute';
+                    this.$refs.overlayCanvas.style.top = '0px';
+                    this.$refs.overlayCanvas.style.left = '0px';
+                }
+            }
         },
         
         // 设置当前工具
@@ -277,6 +293,26 @@ createApp({
 
         // 叠加画布开始绘制方法
         startDrawingOverlay(e) {
+            // 防止右键菜单
+            if (e.button === 2) {
+                e.preventDefault();
+                return;
+            }
+            
+            // 如果是移动工具，但在展台模式下，不执行平移操作
+            if (this.currentTool === 'move' && this.isCameraActive) {
+                // 在展台模式下禁用移动工具的平移功能
+                return;
+            }
+            
+            // 如果是移动工具（仅在非展台模式下），开始平移
+            if (this.currentTool === 'move') {
+                this.isPanning = true;
+                this.panStartX = e.clientX - this.offsetX;
+                this.panStartY = e.clientY - this.offsetY;
+                return;
+            }
+            
             // 只有在画笔或橡皮擦模式下才允许绘制
             if (this.currentTool !== 'pen' && this.currentTool !== 'eraser') return;
             
@@ -290,6 +326,20 @@ createApp({
 
         // 叠加画布绘制方法
         drawOnOverlay(e) {
+            // 在展台模式下禁用移动工具的平移功能
+            if (this.isPanning && this.isCameraActive) {
+                // 不执行任何操作，保持叠加画布固定
+                return;
+            }
+            
+            // 如果正在平移（仅在非展台模式下），更新画布位置
+            if (this.isPanning) {
+                this.offsetX = e.clientX - this.panStartX;
+                this.offsetY = e.clientY - this.panStartY;
+                this.applyTransform(); // 应用变换
+                return;
+            }
+            
             // 如果没有在绘制，则直接返回
             if (!this.isDrawing) return;
             
@@ -337,11 +387,18 @@ createApp({
         // 叠加画布停止绘制方法
         stopDrawingOverlay(e) {
             this.isDrawing = false;
+            this.isPanning = false;
+            this.applyTransform();
         },
 
         // 处理缩放
         handleZoom(e) {
             e.preventDefault();
+            
+            // 在展台模式下，不处理缩放
+            if (this.isCameraActive) {
+                return;
+            }
             
             // 获取鼠标相对于画布容器的位置
             const rect = this.$refs.canvasContainer.getBoundingClientRect();
@@ -363,38 +420,49 @@ createApp({
             // 更新缩放比例
             this.scale = newScale;
             this.applyTransform();
-            
-            // 如果在展台模式下，也需要更新叠加画布
-            if (this.isCameraActive) {
-                this.$nextTick(() => {
-                    this.initOverlayContent();
-                });
-            }
         },
         
         // 放大
         zoomIn() {
+            // 在展台模式下，不执行缩放操作
+            if (this.isCameraActive) {
+                return;
+            }
+            
             this.scale = Math.min(5, this.scale * 1.2);
             this.applyTransform();
         },
         
         // 缩小
         zoomOut() {
+            // 在展台模式下，不执行缩放操作
+            if (this.isCameraActive) {
+                return;
+            }
+            
             this.scale = Math.max(0.1, this.scale * 0.8);
             this.applyTransform();
         },
         
         // 清空白板
         clearCanvas() {
-            const canvas = this.$refs.mainCanvas;
-            const ctx = canvas.getContext('2d');
-            
-            // 清空整个画布
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // 重新填充白色背景
-            ctx.fillStyle = 'white';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            // 如果在展台模式下，清空叠加层画布
+            if (this.isCameraActive && this.$refs.overlayCanvas) {
+                const overlayCanvas = this.$refs.overlayCanvas;
+                const overlayCtx = overlayCanvas.getContext('2d');
+                overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+            } else {
+                // 否则清空主画布
+                const canvas = this.$refs.mainCanvas;
+                const ctx = canvas.getContext('2d');
+                
+                // 清空整个画布
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // 重新填充白色背景
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
         },
         
         // 保存为图片
@@ -427,6 +495,11 @@ createApp({
                 }
             } else {
                 // 当前是白板模式，切换到展台模式
+                // 重置缩放到100%
+                this.scale = 1;
+                this.offsetX = 0;
+                this.offsetY = 0;
+                
                 // 开启摄像头
                 try {
                     // 检查是否支持mediaDevices API
@@ -456,6 +529,8 @@ createApp({
                                     this.$nextTick(() => {
                                         this.initOverlayContent();
                                         this.attachOverlayEvents();
+                                        // 应用变换以确保摄像头容器和叠加画布正确初始化
+                                        this.applyTransform();
                                     });
                                 } else {
                                     console.error('无法找到摄像头视频元素');

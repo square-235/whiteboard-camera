@@ -125,10 +125,7 @@ canvas {
     background-color: transparent;
     z-index: 1000; /* 确保摄像头在最上层 */
     touch-action: none;
-}
-
-.camera-container > * {
-    pointer-events: auto;
+    transform-origin: 0 0;
 }
 
 .camera-container video {
@@ -148,6 +145,7 @@ canvas {
     pointer-events: auto;
     z-index: 1001; /* 确保画布在摄像头视频之上 */
     background-color: transparent;
+    transform-origin: 0 0;
 }
 
 /* 响应式设计 */
