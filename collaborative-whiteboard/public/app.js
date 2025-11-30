@@ -3,35 +3,38 @@ const { createApp } = Vue;
 
 createApp({
     data() {
-        return {
-            // 工具相关
-            currentTool: 'pen',
-            penColor: '#000000',
-            penSize: 5,
-            
-            // 绘图状态
-            isDrawing: false,
-            lastX: 0,
-            lastY: 0,
-            
-            // 画布变换
-            scale: 1,
-            offsetX: 0,
-            offsetY: 0,
-            isPanning: false,
-            panStartX: 0,
-            panStartY: 0,
-            
-            // 摄像头相关
-            isCameraActive: false,
-            isCameraFrozen: false,
-            cameraStream: null,
-            cameraStyle: {
-                transform: 'translate(0, 0) scale(1)'
-            },
-            previousTool: null
-        };
-    },
+            return {
+                // 工具相关
+                currentTool: 'pen',
+                penColor: '#000000',
+                penSize: 5,
+                
+                // 绘图状态
+                isDrawing: false,
+                lastX: 0,
+                lastY: 0,
+                
+                // 画布变换
+                scale: 1,
+                offsetX: 0,
+                offsetY: 0,
+                isPanning: false,
+                panStartX: 0,
+                panStartY: 0,
+                
+                // 摄像头相关
+                isCameraActive: false,
+                isCameraFrozen: false,
+                cameraStream: null,
+                cameraStyle: {
+                    transform: 'translate(0, 0) scale(1)'
+                },
+                previousTool: null,
+                
+                // 叠加画布事件监听器
+                overlayEventListeners: []
+            };
+        },
     
     mounted() {
         // 初始化画布
@@ -40,6 +43,9 @@ createApp({
         // 添加键盘事件监听器
         window.addEventListener('keydown', this.handleKeyDown);
         window.addEventListener('keyup', this.handleKeyUp);
+        
+        // 初始化叠加画布
+        this.initOverlayCanvas();
     },
     
     beforeUnmount() {
@@ -88,6 +94,86 @@ createApp({
             ctx.fillRect(0, 0, canvas.width, canvas.height);
         },
         
+        // 初始化叠加画布
+        initOverlayCanvas() {
+            // 注意：叠加画布的初始化将在摄像头激活时进行
+        },
+        
+        // 初始化叠加画布内容
+        initOverlayContent() {
+            if (!this.isCameraActive || !this.$refs.overlayCanvas) return;
+            
+            const canvas = this.$refs.overlayCanvas;
+            const ctx = canvas.getContext('2d');
+            
+            // 设置画布实际大小
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+            
+            // 设置初始样式
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+            ctx.lineWidth = this.penSize;
+            ctx.strokeStyle = this.penColor;
+            
+            // 设置透明背景（不绘制任何背景）
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        },
+        
+        // 附加叠加画布事件
+        attachOverlayEvents() {
+            if (!this.isCameraActive || !this.$refs.overlayCanvas) return;
+            
+            const overlayCanvas = this.$refs.overlayCanvas;
+            
+            // 移除之前可能添加的事件监听器
+            if (this.overlayEventListeners) {
+                this.overlayEventListeners.forEach(({ event, handler }) => {
+                    overlayCanvas.removeEventListener(event, handler);
+                });
+            }
+            
+            // 创建新的事件监听器数组
+            this.overlayEventListeners = [];
+            
+            // 定义事件处理函数
+            const handleMouseDown = (e) => {
+                this.startDrawingOverlay(e);
+            };
+            
+            const handleMouseMove = (e) => {
+                this.drawOnOverlay(e);
+            };
+            
+            const handleMouseUp = (e) => {
+                this.stopDrawingOverlay(e);
+            };
+            
+            const handleMouseLeave = (e) => {
+                this.stopDrawingOverlay(e);
+            };
+            
+            const handleWheel = (e) => {
+                this.handleZoom(e);
+            };
+            
+            // 添加事件监听器
+            overlayCanvas.addEventListener('mousedown', handleMouseDown);
+            overlayCanvas.addEventListener('mousemove', handleMouseMove);
+            overlayCanvas.addEventListener('mouseup', handleMouseUp);
+            overlayCanvas.addEventListener('mouseleave', handleMouseLeave);
+            overlayCanvas.addEventListener('wheel', handleWheel);
+            
+            // 保存事件监听器以便后续清理
+            this.overlayEventListeners.push(
+                { event: 'mousedown', handler: handleMouseDown },
+                { event: 'mousemove', handler: handleMouseMove },
+                { event: 'mouseup', handler: handleMouseUp },
+                { event: 'mouseleave', handler: handleMouseLeave },
+                { event: 'wheel', handler: handleWheel }
+            );
+        },
+        
         // 在每次重绘时应用变换
         applyTransform() {
             const canvas = this.$refs.mainCanvas;
@@ -115,6 +201,12 @@ createApp({
                 return;
             }
             
+            // 如果在展台模式下，将事件转发给叠加画布
+            if (this.isCameraActive) {
+                this.startDrawingOverlay(e);
+                return;
+            }
+            
             this.isDrawing = true;
             
             // 获取相对坐标（考虑画布变换）
@@ -133,6 +225,12 @@ createApp({
                 this.offsetX = e.clientX - this.panStartX;
                 this.offsetY = e.clientY - this.panStartY;
                 this.applyTransform(); // 应用变换
+                return;
+            }
+            
+            // 如果在展台模式下，将事件转发给叠加画布
+            if (this.isCameraActive) {
+                this.drawOnOverlay(e);
                 return;
             }
             
@@ -167,11 +265,80 @@ createApp({
         
         // 停止绘制
         stopDrawing() {
+            // 如果在展台模式下，将事件转发给叠加画布
+            if (this.isCameraActive) {
+                this.stopDrawingOverlay();
+            }
+            
             this.isDrawing = false;
             this.isPanning = false;
             this.applyTransform();
         },
-        
+
+        // 叠加画布开始绘制方法
+        startDrawingOverlay(e) {
+            // 只有在画笔或橡皮擦模式下才允许绘制
+            if (this.currentTool !== 'pen' && this.currentTool !== 'eraser') return;
+            
+            this.isDrawing = true;
+            
+            // 获取叠加画布上的坐标
+            const rect = this.$refs.overlayCanvas.getBoundingClientRect();
+            this.lastX = e.clientX - rect.left;
+            this.lastY = e.clientY - rect.top;
+        },
+
+        // 叠加画布绘制方法
+        drawOnOverlay(e) {
+            // 如果没有在绘制，则直接返回
+            if (!this.isDrawing) return;
+            
+            // 只有在画笔或橡皮擦模式下才允许绘制
+            if (this.currentTool !== 'pen' && this.currentTool !== 'eraser') return;
+            
+            const canvas = this.$refs.overlayCanvas;
+            const ctx = canvas.getContext('2d');
+            
+            // 获取叠加画布上的坐标
+            const rect = canvas.getBoundingClientRect();
+            const currentX = e.clientX - rect.left;
+            const currentY = e.clientY - rect.top;
+            
+            // 保存当前上下文状态
+            ctx.save();
+            
+            // 根据当前工具设置绘图属性
+            if (this.currentTool === 'eraser') {
+                ctx.globalCompositeOperation = 'destination-out';
+                ctx.lineWidth = this.eraserSize;
+            } else {
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.lineWidth = this.penSize;
+                ctx.strokeStyle = this.penColor;
+            }
+            
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+            
+            // 绘制线条
+            ctx.beginPath();
+            ctx.moveTo(this.lastX, this.lastY);
+            ctx.lineTo(currentX, currentY);
+            ctx.stroke();
+            
+            // 恢复上下文状态
+            ctx.restore();
+            
+            // 更新最后坐标
+            this.lastX = currentX;
+            this.lastY = currentY;
+        },
+
+        // 叠加画布停止绘制方法
+        stopDrawingOverlay(e) {
+            this.isDrawing = false;
+        },
+
         // 处理缩放
         handleZoom(e) {
             e.preventDefault();
@@ -196,6 +363,13 @@ createApp({
             // 更新缩放比例
             this.scale = newScale;
             this.applyTransform();
+            
+            // 如果在展台模式下，也需要更新叠加画布
+            if (this.isCameraActive) {
+                this.$nextTick(() => {
+                    this.initOverlayContent();
+                });
+            }
         },
         
         // 放大
@@ -243,6 +417,14 @@ createApp({
                 }
                 this.isCameraActive = false;
                 this.isCameraFrozen = false;
+                
+                // 清理叠加画布事件监听器
+                if (this.overlayEventListeners && this.$refs.overlayCanvas) {
+                    this.overlayEventListeners.forEach(({ event, handler }) => {
+                        this.$refs.overlayCanvas.removeEventListener(event, handler);
+                    });
+                    this.overlayEventListeners = [];
+                }
             } else {
                 // 当前是白板模式，切换到展台模式
                 // 开启摄像头
@@ -269,6 +451,12 @@ createApp({
                                 // 检查摄像头视频元素是否存在
                                 if (this.$refs.cameraVideo) {
                                     this.$refs.cameraVideo.srcObject = this.cameraStream;
+                                    
+                                    // 初始化叠加画布
+                                    this.$nextTick(() => {
+                                        this.initOverlayContent();
+                                        this.attachOverlayEvents();
+                                    });
                                 } else {
                                     console.error('无法找到摄像头视频元素');
                                     alert('无法找到摄像头视频元素');

@@ -122,10 +122,9 @@ canvas {
     border: none;
     border-radius: 0;
     overflow: hidden;
-    background-color: #000;
+    background-color: transparent;
     z-index: 1000; /* 确保摄像头在最上层 */
     touch-action: none;
-    pointer-events: none;
 }
 
 .camera-container > * {
@@ -136,6 +135,19 @@ canvas {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    background-color: #000; /* 确保视频有黑色背景 */
+}
+
+/* 叠加画布 */
+.overlay-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: auto;
+    z-index: 1001; /* 确保画布在摄像头视频之上 */
+    background-color: transparent;
 }
 
 /* 响应式设计 */
