@@ -179,17 +179,13 @@ createApp({
             const canvas = this.$refs.mainCanvas;
             canvas.style.transform = `translate(${this.offsetX}px, ${this.offsetY}px) scale(${this.scale})`;
             
-            // 如果在展台模式下，应用变换到摄像头容器和叠加画布
+            // 如果在展台模式下，应用变换到摄像头容器
             if (this.isCameraActive) {
                 // 应用变换到摄像头容器
                 if (this.$refs.cameraContainer) {
                     this.$refs.cameraContainer.style.transform = `translate(${this.offsetX}px, ${this.offsetY}px) scale(${this.scale})`;
                 }
-                
-                // 叠加画布跟随摄像头容器一起变换
-                if (this.$refs.overlayCanvas) {
-                    this.$refs.overlayCanvas.style.transform = `translate(${this.offsetX}px, ${this.offsetY}px) scale(${this.scale})`;
-                }
+                // 叠加画布是摄像头容器的子元素，会自动继承变换，不需要单独应用
             }
         },
         
@@ -296,13 +292,7 @@ createApp({
                 return;
             }
             
-            // 如果是移动工具，但在展台模式下，不执行平移操作
-            if (this.currentTool === 'move' && this.isCameraActive) {
-                // 在展台模式下禁用移动工具的平移功能
-                return;
-            }
-            
-            // 如果是移动工具（仅在非展台模式下），开始平移
+            // 如果是移动工具，开始平移
             if (this.currentTool === 'move') {
                 this.isPanning = true;
                 this.panStartX = e.clientX - this.offsetX;
@@ -315,21 +305,15 @@ createApp({
             
             this.isDrawing = true;
             
-            // 获取叠加画布上的坐标
-            const rect = this.$refs.overlayCanvas.getBoundingClientRect();
-            this.lastX = e.clientX - rect.left;
-            this.lastY = e.clientY - rect.top;
+            // 获取相对坐标（考虑画布变换）
+            const containerRect = this.$refs.canvasContainer.getBoundingClientRect();
+            this.lastX = (e.clientX - containerRect.left - this.offsetX) / this.scale;
+            this.lastY = (e.clientY - containerRect.top - this.offsetY) / this.scale;
         },
 
         // 叠加画布绘制方法
         drawOnOverlay(e) {
-            // 在展台模式下禁用移动工具的平移功能
-            if (this.isPanning && this.isCameraActive) {
-                // 不执行任何操作，保持叠加画布固定
-                return;
-            }
-            
-            // 如果正在平移（仅在非展台模式下），更新画布位置
+            // 如果正在平移，更新画布位置
             if (this.isPanning) {
                 this.offsetX = e.clientX - this.panStartX;
                 this.offsetY = e.clientY - this.panStartY;
@@ -346,10 +330,10 @@ createApp({
             const canvas = this.$refs.overlayCanvas;
             const ctx = canvas.getContext('2d');
             
-            // 获取叠加画布上的坐标
-            const rect = canvas.getBoundingClientRect();
-            const currentX = e.clientX - rect.left;
-            const currentY = e.clientY - rect.top;
+            // 获取相对坐标（考虑画布变换）
+            const containerRect = this.$refs.canvasContainer.getBoundingClientRect();
+            const currentX = (e.clientX - containerRect.left - this.offsetX) / this.scale;
+            const currentY = (e.clientY - containerRect.top - this.offsetY) / this.scale;
             
             // 保存当前上下文状态
             ctx.save();
@@ -357,7 +341,7 @@ createApp({
             // 根据当前工具设置绘图属性
             if (this.currentTool === 'eraser') {
                 ctx.globalCompositeOperation = 'destination-out';
-                ctx.lineWidth = this.eraserSize;
+                ctx.lineWidth = this.penSize;
             } else {
                 ctx.globalCompositeOperation = 'source-over';
                 ctx.lineWidth = this.penSize;
@@ -449,10 +433,44 @@ createApp({
         
         // 保存为图片
         saveAsImage() {
-            const canvas = this.$refs.mainCanvas;
+            if (this.isCameraActive) {
+                // 展台模式：保存摄像头画面和叠加画布
+                this.saveCameraImage();
+            } else {
+                // 白板模式：保存主画布
+                const canvas = this.$refs.mainCanvas;
+                const link = document.createElement('a');
+                link.download = 'whiteboard.png';
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            }
+        },
+        
+        // 保存摄像头画面和叠加画布为图片
+        saveCameraImage() {
+            if (!this.isCameraActive || !this.$refs.cameraVideo || !this.$refs.overlayCanvas) return;
+            
+            const cameraVideo = this.$refs.cameraVideo;
+            const overlayCanvas = this.$refs.overlayCanvas;
+            
+            // 创建一个新的canvas用于合成图像
+            const tempCanvas = document.createElement('canvas');
+            const ctx = tempCanvas.getContext('2d');
+            
+            // 设置canvas大小为摄像头视频的实际大小
+            tempCanvas.width = cameraVideo.videoWidth;
+            tempCanvas.height = cameraVideo.videoHeight;
+            
+            // 绘制摄像头画面
+            ctx.drawImage(cameraVideo, 0, 0, tempCanvas.width, tempCanvas.height);
+            
+            // 绘制叠加画布内容
+            ctx.drawImage(overlayCanvas, 0, 0, tempCanvas.width, tempCanvas.height);
+            
+            // 保存合成后的图像
             const link = document.createElement('a');
-            link.download = 'whiteboard.png';
-            link.href = canvas.toDataURL('image/png');
+            link.download = 'camera_whiteboard.png';
+            link.href = tempCanvas.toDataURL('image/png');
             link.click();
         },
         
@@ -507,13 +525,16 @@ createApp({
                                 if (this.$refs.cameraVideo) {
                                     this.$refs.cameraVideo.srcObject = this.cameraStream;
                                     
-                                    // 初始化叠加画布
-                                    this.$nextTick(() => {
-                                        this.initOverlayContent();
-                                        this.attachOverlayEvents();
-                                        // 应用变换以确保摄像头容器和叠加画布正确初始化
-                                        this.applyTransform();
-                                    });
+                                    // 添加视频元数据加载完成事件监听器
+                                    this.$refs.cameraVideo.onloadedmetadata = () => {
+                                        // 初始化叠加画布
+                                        this.$nextTick(() => {
+                                            this.initOverlayContent();
+                                            this.attachOverlayEvents();
+                                            // 应用变换以确保摄像头容器正确初始化
+                                            this.applyTransform();
+                                        });
+                                    };
                                 } else {
                                     console.error('无法找到摄像头视频元素');
                                     alert('无法找到摄像头视频元素');
